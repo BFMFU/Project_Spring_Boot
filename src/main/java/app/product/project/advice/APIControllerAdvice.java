@@ -91,4 +91,15 @@ public class APIControllerAdvice {
 		), HttpStatus.SERVICE_UNAVAILABLE);
 	}
 
+	@ExceptionHandler(RuntimeException.class)
+	public ResponseEntity<ApiDataResponse<Object>> handleRuntimeException(RuntimeException e) {
+		return new ResponseEntity<>(new ApiDataResponse<>(
+				false,
+				e.getMessage() != null ? e.getMessage() : "Lỗi hệ thống",
+				null,
+				null,
+				HttpStatus.INTERNAL_SERVER_ERROR
+		), HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
 }

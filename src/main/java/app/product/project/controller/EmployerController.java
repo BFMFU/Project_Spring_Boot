@@ -1,12 +1,9 @@
 package app.product.project.controller;
 
-import app.product.project.model.dto.request.InterviewRequestDTO;
 import app.product.project.model.dto.request.JobPostingRequestDTO;
 import app.product.project.model.dto.request.UpdateApplicationStatusRequest;
 import app.product.project.model.dto.response.ApiDataResponse;
 import app.product.project.model.dto.response.ApplicationResponseDTO;
-import app.product.project.model.dto.response.ApplicationStatusHistoryResponseDTO;
-import app.product.project.model.dto.response.InterviewResponseDTO;
 import app.product.project.model.dto.response.JobPostingResponseDTO;
 import app.product.project.model.dto.response.PaginatedResponse;
 import app.product.project.security.principal.CustomUserDetails;

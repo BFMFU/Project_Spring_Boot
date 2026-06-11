@@ -36,7 +36,7 @@ public class SpringSecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/employers/**").hasRole("EMPLOYER")
-                        .requestMatchers("/api/v1/candidate/**").hasRole("CANDIDATE")
+                        .requestMatchers("/api/v1/candidates/**").hasRole("CANDIDATE")
                         .anyRequest().authenticated()
                 )
                 .cors(Customizer.withDefaults())

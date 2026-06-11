@@ -10,6 +10,8 @@ import app.product.project.model.dto.response.InterviewResponseDTO;
 import app.product.project.model.dto.response.PaginatedResponse;
 import app.product.project.model.entity.Application;
 import app.product.project.model.entity.ApplicationStatus;
+import app.product.project.model.entity.ApplicationStatusHistory;
+import app.product.project.model.entity.Interview;
 import app.product.project.model.entity.JobPosting;
 import app.product.project.repository.ApplicationRepository;
 import app.product.project.repository.ApplicationStatusHistoryRepository;
@@ -28,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -146,6 +149,18 @@ public class EmployerApplicationServiceImpl implements EmployerApplicationServic
         log.info("Application {} status updated from {} to {} by employer {}",
                 requestDTO.getApplicationId(), oldStatus, requestDTO.getStatus(), employerId);
 
+        // Save status history
+        ApplicationStatusHistory statusHistory = ApplicationStatusHistory.builder()
+                .application(updatedApplication)
+                .oldStatus(oldStatus)
+                .newStatus(requestDTO.getStatus())
+                .feedback(requestDTO.getFeedback())
+                .changedAt(LocalDateTime.now())
+                .reason("Status updated by employer")
+                .build();
+        statusHistoryRepository.save(statusHistory);
+        log.info("Status history saved for application {}", requestDTO.getApplicationId());
+
         // Send email notification to candidate
         try {
             String candidateEmail = application.getCandidate().getEmail();
@@ -171,25 +186,140 @@ public class EmployerApplicationServiceImpl implements EmployerApplicationServic
         return toApplicationResponseDTO(updatedApplication);
     }
 
-    @Override
-    public InterviewResponseDTO scheduleInterview(Long employerId, Long applicationId, InterviewRequestDTO requestDTO) {
-        return null;
-    }
+     @Override
+     public InterviewResponseDTO scheduleInterview(Long employerId, Long applicationId, InterviewRequestDTO requestDTO) {
+         log.info("Employer {} scheduling interview for application {}", employerId, applicationId);
 
-    @Override
-    public PaginatedResponse<InterviewResponseDTO> getInterviewsByApplication(Long employerId, Long applicationId, Pageable pageable) {
-        return null;
-    }
+         Application application = applicationRepository.findById(applicationId)
+                 .orElseThrow(() -> {
+                     log.error("Application not found: {}", applicationId);
+                     return new RuntimeException("Hồ sơ ứng tuyển không tồn tại");
+                 });
 
-    @Override
-    public InterviewResponseDTO updateInterviewResult(Long employerId, Long interviewId, String result, String feedback) {
-        return null;
-    }
+         // Verify that the application belongs to a job posting owned by this employer
+         if (!application.getJobPosting().getEmployer().getUserId().equals(employerId)) {
+             log.error("Employer {} tried to schedule interview for application {} of job {} owned by {}",
+                     employerId, applicationId, application.getJobPosting().getId(),
+                     application.getJobPosting().getEmployer().getUserId());
+             throw new RuntimeException("Bạn không có quyền lên lịch phỏng vấn cho hồ sơ này");
+         }
 
-    @Override
-    public PaginatedResponse<ApplicationStatusHistoryResponseDTO> getApplicationStatusHistory(Long employerId, Long applicationId, Pageable pageable) {
-        return null;
-    }
+         // Create new interview
+         Interview interview = Interview.builder()
+                 .application(application)
+                 .scheduledDate(requestDTO.getScheduledDate())
+                 .interviewType(requestDTO.getInterviewType())
+                 .location(requestDTO.getLocation())
+                 .notes(requestDTO.getNotes())
+                 .result("PENDING")
+                 .build();
+
+         Interview savedInterview = interviewRepository.save(interview);
+         log.info("Interview scheduled successfully for application {}", applicationId);
+
+         return toInterviewResponseDTO(savedInterview);
+     }
+
+     @Override
+     public PaginatedResponse<InterviewResponseDTO> getInterviewsByApplication(Long employerId, Long applicationId, Pageable pageable) {
+         log.info("Employer {} fetching interviews for application {} - Page: {}, Size: {}", employerId, applicationId, pageable.getPageNumber(), pageable.getPageSize());
+
+         Application application = applicationRepository.findById(applicationId)
+                 .orElseThrow(() -> {
+                     log.error("Application not found: {}", applicationId);
+                     return new RuntimeException("Hồ sơ ứng tuyển không tồn tại");
+                 });
+
+         // Verify that the application belongs to a job posting owned by this employer
+         if (!application.getJobPosting().getEmployer().getUserId().equals(employerId)) {
+             log.error("Employer {} tried to fetch interviews for application {} of job {} owned by {}",
+                     employerId, applicationId, application.getJobPosting().getId(),
+                     application.getJobPosting().getEmployer().getUserId());
+             throw new RuntimeException("Bạn không có quyền xem phỏng vấn cho hồ sơ này");
+         }
+
+         Page<Interview> interviewsPage = interviewRepository.findByApplication(application, pageable);
+
+         List<InterviewResponseDTO> interviewDTOs = interviewsPage.getContent()
+                 .stream()
+                 .map(this::toInterviewResponseDTO)
+                 .collect(Collectors.toList());
+
+         log.info("Retrieved {} interviews for application {}", interviewDTOs.size(), applicationId);
+         return PaginatedResponse.<InterviewResponseDTO>builder()
+                 .content(interviewDTOs)
+                 .pageNumber(interviewsPage.getNumber())
+                 .pageSize(interviewsPage.getSize())
+                 .totalElements(interviewsPage.getTotalElements())
+                 .totalPages(interviewsPage.getTotalPages())
+                 .isLast(interviewsPage.isLast())
+                 .build();
+     }
+
+     @Override
+     public InterviewResponseDTO updateInterviewResult(Long employerId, Long interviewId, String result, String feedback) {
+         log.info("Employer {} updating interview {} result to {}", employerId, interviewId, result);
+
+         Interview interview = interviewRepository.findById(interviewId)
+                 .orElseThrow(() -> {
+                     log.error("Interview not found: {}", interviewId);
+                     return new RuntimeException("Phỏng vấn không tồn tại");
+                 });
+
+         // Verify that the interview belongs to an application of a job posting owned by this employer
+         if (!interview.getApplication().getJobPosting().getEmployer().getUserId().equals(employerId)) {
+             log.error("Employer {} tried to update interview {} of application {} owned by {}",
+                     employerId, interviewId, interview.getApplication().getId(),
+                     interview.getApplication().getJobPosting().getEmployer().getUserId());
+             throw new RuntimeException("Bạn không có quyền cập nhật phỏng vấn này");
+         }
+
+         interview.setResult(result);
+         if (feedback != null && !feedback.isEmpty()) {
+             interview.setFeedback(feedback);
+         }
+
+         Interview updatedInterview = interviewRepository.save(interview);
+         log.info("Interview {} result updated to {}", interviewId, result);
+
+         return toInterviewResponseDTO(updatedInterview);
+     }
+
+     @Override
+     public PaginatedResponse<ApplicationStatusHistoryResponseDTO> getApplicationStatusHistory(Long employerId, Long applicationId, Pageable pageable) {
+         log.info("Employer {} fetching status history for application {} - Page: {}, Size: {}", employerId, applicationId, pageable.getPageNumber(), pageable.getPageSize());
+
+         Application application = applicationRepository.findById(applicationId)
+                 .orElseThrow(() -> {
+                     log.error("Application not found: {}", applicationId);
+                     return new RuntimeException("Hồ sơ ứng tuyển không tồn tại");
+                 });
+
+         // Verify that the application belongs to a job posting owned by this employer
+         if (!application.getJobPosting().getEmployer().getUserId().equals(employerId)) {
+             log.error("Employer {} tried to fetch status history for application {} of job {} owned by {}",
+                     employerId, applicationId, application.getJobPosting().getId(),
+                     application.getJobPosting().getEmployer().getUserId());
+             throw new RuntimeException("Bạn không có quyền xem lịch sử trạng thái hồ sơ này");
+         }
+
+         Page<ApplicationStatusHistory> historyPage = statusHistoryRepository.findByApplicationOrderByChangedAtDesc(application, pageable);
+
+         List<ApplicationStatusHistoryResponseDTO> historyDTOs = historyPage.getContent()
+                 .stream()
+                 .map(this::toApplicationStatusHistoryResponseDTO)
+                 .collect(Collectors.toList());
+
+         log.info("Retrieved {} status history records for application {}", historyDTOs.size(), applicationId);
+         return PaginatedResponse.<ApplicationStatusHistoryResponseDTO>builder()
+                 .content(historyDTOs)
+                 .pageNumber(historyPage.getNumber())
+                 .pageSize(historyPage.getSize())
+                 .totalElements(historyPage.getTotalElements())
+                 .totalPages(historyPage.getTotalPages())
+                 .isLast(historyPage.isLast())
+                 .build();
+     }
 
     private String buildStatusChangeNotificationEmail(String candidateName, String jobTitle, String oldStatus,
                                                       String newStatus, String feedback, String employerName) {
@@ -231,19 +361,45 @@ public class EmployerApplicationServiceImpl implements EmployerApplicationServic
         };
     }
 
-    private ApplicationResponseDTO toApplicationResponseDTO(Application application) {
-        return ApplicationResponseDTO.builder()
-                .id(application.getId())
-                .candidateId(application.getCandidate().getUserId())
-                .candidateName(application.getCandidate().getFullName())
-                .jobId(application.getJobPosting().getId())
-                .jobTitle(application.getJobPosting().getTitle())
-                .coverLetter(application.getCoverLetter())
-                .cvUrl(application.getCvUrl())
-                .status(application.getStatus().getStatusName())
-                .feedback(application.getFeedback())
-                .appliedAt(application.getAppliedAt())
-                .build();
-    }
+     private ApplicationResponseDTO toApplicationResponseDTO(Application application) {
+         return ApplicationResponseDTO.builder()
+                 .id(application.getId())
+                 .candidateId(application.getCandidate().getUserId())
+                 .candidateName(application.getCandidate().getFullName())
+                 .jobId(application.getJobPosting().getId())
+                 .jobTitle(application.getJobPosting().getTitle())
+                 .coverLetter(application.getCoverLetter())
+                 .cvUrl(application.getCvUrl())
+                 .status(application.getStatus().getStatusName())
+                 .feedback(application.getFeedback())
+                 .appliedAt(application.getAppliedAt())
+                 .build();
+     }
+
+     private InterviewResponseDTO toInterviewResponseDTO(Interview interview) {
+         return InterviewResponseDTO.builder()
+                 .id(interview.getId())
+                 .applicationId(interview.getApplication().getId())
+                 .scheduledDate(interview.getScheduledDate())
+                 .interviewType(interview.getInterviewType())
+                 .location(interview.getLocation())
+                 .notes(interview.getNotes())
+                 .result(interview.getResult())
+                 .feedback(interview.getFeedback())
+                 .createdAt(interview.getCreatedAt())
+                 .build();
+     }
+
+     private ApplicationStatusHistoryResponseDTO toApplicationStatusHistoryResponseDTO(ApplicationStatusHistory history) {
+         return ApplicationStatusHistoryResponseDTO.builder()
+                 .id(history.getId())
+                 .applicationId(history.getApplication().getId())
+                 .oldStatus(history.getOldStatus())
+                 .newStatus(history.getNewStatus())
+                 .feedback(history.getFeedback())
+                 .changedAt(history.getChangedAt())
+                 .reason(history.getReason())
+                 .build();
+     }
 }
 

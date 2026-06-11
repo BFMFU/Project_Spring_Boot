@@ -65,6 +65,7 @@ public class AdminController {
     }
 
     @GetMapping("/users/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiDataResponse<UserResponseDTO>> getUserById(@PathVariable Long userId) {
         log.info("Admin fetching user by ID: {}", userId);
         UserResponseDTO userDTO = adminUserService.getUserById(userId);
