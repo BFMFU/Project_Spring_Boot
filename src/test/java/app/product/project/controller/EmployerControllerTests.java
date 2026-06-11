@@ -111,6 +111,21 @@ class EmployerControllerTests {
     }
 
     @Test
+    void testCreateJobPosting_ResponseBodyContainsData() throws Exception {
+        when(employerJobService.createJobPosting(anyLong(), any()))
+                .thenReturn(jobPostingResponseDTO);
+
+        mockMvc.perform(post("/api/v1/employers/jobs")
+                                .with(employerAuth())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(jobPostingRequestDTO)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.id", is(1)))
+                .andExpect(jsonPath("$.data.title", is("Senior Java Developer")));
+    }
+
+    @Test
     @WithMockUser(roles = "EMPLOYER")
     void testGetMyJobPostings_Success() throws Exception {
         List<JobPostingResponseDTO> jobList = new ArrayList<>();
@@ -176,6 +191,32 @@ class EmployerControllerTests {
                 .andExpect(status().isOk());
 
         verify(employerApplicationService, times(1)).updateApplicationStatus(anyLong(), any());
+    }
+
+    @Test
+    void testUpdateApplicationStatus_ResponseBodyContainsUpdatedStatus() throws Exception {
+        ApplicationResponseDTO updatedApplication = ApplicationResponseDTO.builder()
+                .id(1L)
+                .candidateId(2L)
+                .candidateName("John Doe")
+                .jobId(1L)
+                .jobTitle("Senior Java Developer")
+                .status("REVIEWING")
+                .feedback("CV looks good")
+                .appliedAt(LocalDateTime.now())
+                .build();
+
+        when(employerApplicationService.updateApplicationStatus(anyLong(), any()))
+                .thenReturn(updatedApplication);
+
+        mockMvc.perform(put("/api/v1/employers/applications/1/status")
+                                .with(employerAuth())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(updateStatusRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.status", is("REVIEWING")))
+                .andExpect(jsonPath("$.data.feedback", is("CV looks good")));
     }
 
     @Test

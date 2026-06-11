@@ -255,5 +255,41 @@ class EmployerApplicationServiceImplTests {
 
         verify(interviewRepository, never()).save(any(Interview.class));
     }
+
+    @Test
+    void testGetApplicationsByJobPosting_NotOwner() {
+        Long employerId = 999L; // different employer
+        Long jobId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(jobPostingRepository.findById(jobId)).thenReturn(Optional.of(jobPosting));
+
+        // Expect RuntimeException because employerId does not match jobPosting.employer.userId
+        assertThrows(RuntimeException.class, () -> {
+            employerApplicationService.getApplicationsByJobPosting(employerId, jobId, pageable);
+        });
+
+        verify(applicationRepository, never()).findByJobPosting(any(JobPosting.class), any(Pageable.class));
+    }
+
+    @Test
+    void testUpdateApplicationStatus_StatusNotFound() {
+        Long employerId = 1L;
+
+        UpdateApplicationStatusRequest request = UpdateApplicationStatusRequest.builder()
+                .applicationId(1L)
+                .status("NON_EXISTENT_STATUS")
+                .feedback("Feedback")
+                .build();
+
+        when(applicationRepository.findById(1L)).thenReturn(Optional.of(application));
+        when(applicationStatusRepository.findByStatusName("NON_EXISTENT_STATUS")).thenReturn(Optional.empty());
+
+        assertThrows(RuntimeException.class, () -> {
+            employerApplicationService.updateApplicationStatus(employerId, request);
+        });
+
+        verify(applicationRepository, never()).save(any(Application.class));
+    }
 }
 
