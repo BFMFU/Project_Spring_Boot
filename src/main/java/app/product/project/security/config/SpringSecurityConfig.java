@@ -34,6 +34,7 @@ public class SpringSecurityConfig {
         httpSecurity.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(req -> req
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/jobs/**").permitAll()  // Public job search
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/employers/**").hasRole("EMPLOYER")
                         .requestMatchers("/api/v1/candidates/**").hasRole("CANDIDATE")

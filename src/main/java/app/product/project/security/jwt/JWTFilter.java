@@ -30,9 +30,9 @@ public class JWTFilter extends OncePerRequestFilter {
         try {
             String token = getTokenFromRequest(request);
             if(token!=null && jwtProvider.validateToken(token)){
+                // Check if token is blacklisted (revoked after logout)
                 if (tokenBlacklistService.isTokenBlacklisted(token)) {
-                    filterChain.doFilter(request, response);
-                    return;
+                    throw new io.jsonwebtoken.JwtException("Token has been revoked. Please login again.");
                 }
 
                 String username = jwtProvider.getUsernameFromToken(token);
@@ -42,8 +42,7 @@ public class JWTFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (Exception e) {
-            // Log the exception but don't stop the filter chain
-            // Let Spring Security handle the authentication error
+
             SecurityContextHolder.clearContext();
         }
         filterChain.doFilter(request, response);
