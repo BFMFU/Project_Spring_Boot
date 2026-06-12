@@ -93,6 +93,25 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         log.info("Password reset successful for email: {}", email);
     }
 
+    @Override
+    @Transactional
+    public void changePassword(String email, String oldPassword, String newPassword) {
+        // Check if user exists
+        Users user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Người dùng với email: " + email + " không tồn tại"));
+
+        // Verify old password
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            throw new RuntimeException("Mật khẩu cũ không chính xác");
+        }
+
+        // Update password
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        log.info("Password changed successfully for email: {}", email);
+    }
+
     private String generateVerificationCode() {
         Random random = new Random();
         int code = 100000 + random.nextInt(900000);

@@ -5,6 +5,7 @@ import app.product.project.model.dto.request.UserDTO;
 import app.product.project.model.dto.request.UserLogin;
 import app.product.project.model.dto.request.ForgotPasswordRequest;
 import app.product.project.model.dto.request.VerifyCodeRequest;
+import app.product.project.model.dto.request.ChangePasswordRequest;
 import app.product.project.model.dto.response.ApiDataResponse;
 import app.product.project.model.dto.response.JWTResponse;
 import app.product.project.model.entity.Users;
@@ -162,6 +163,75 @@ public class AuthController {
             return new ResponseEntity<>(new ApiDataResponse<>(
                     false,
                     "Đặt lại mật khẩu thất bại: " + e.getMessage(),
+                    null,
+                    null,
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            ), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiDataResponse<Void>> changePassword(
+            @RequestHeader("Authorization") String authHeader,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        try {
+            // Extract token from Authorization header
+            String token = authHeader != null && authHeader.startsWith("Bearer ")
+                    ? authHeader.substring(7)
+                    : null;
+
+            if (token == null || token.trim().isEmpty()) {
+                return new ResponseEntity<>(new ApiDataResponse<>(
+                        false,
+                        "Token không hợp lệ",
+                        null,
+                        null,
+                        HttpStatus.BAD_REQUEST
+                ), HttpStatus.BAD_REQUEST);
+            }
+
+            // Get username from token
+            String username = userService.getUsernameFromToken(token);
+
+            // Verify new password and confirm password match
+            if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+                return new ResponseEntity<>(new ApiDataResponse<>(
+                        false,
+                        "Mật khẩu mới và xác nhận mật khẩu không khớp",
+                        null,
+                        null,
+                        HttpStatus.BAD_REQUEST
+                ), HttpStatus.BAD_REQUEST);
+            }
+
+            // Get user by username to find email
+            Users user = userService.getAllUsers().stream()
+                    .filter(u -> u.getUsername().equals(username))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+
+            // Call change password service
+            passwordResetService.changePassword(user.getEmail(), request.getOldPassword(), request.getNewPassword());
+
+            return new ResponseEntity<>(new ApiDataResponse<>(
+                    true,
+                    "Mật khẩu đã được thay đổi thành công",
+                    null,
+                    null,
+                    HttpStatus.OK
+            ), HttpStatus.OK);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(new ApiDataResponse<>(
+                    false,
+                    e.getMessage(),
+                    null,
+                    null,
+                    HttpStatus.BAD_REQUEST
+            ), HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ApiDataResponse<>(
+                    false,
+                    "Đổi mật khẩu thất bại: " + e.getMessage(),
                     null,
                     null,
                     HttpStatus.INTERNAL_SERVER_ERROR
