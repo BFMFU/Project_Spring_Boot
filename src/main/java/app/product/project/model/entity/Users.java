@@ -31,9 +31,5 @@ public class Users {
     @Column(name = "cv_url", columnDefinition = "LONGTEXT")
     private String cvUrl;
     @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.EAGER)
-    @JoinTable(name = "user_role",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id"))
-    @JsonIgnore
     private List<Role> roles;
 }

@@ -163,9 +163,6 @@ public class AdminUserServiceImpl implements AdminUserService {
         log.info("User deleted successfully: {}", userId);
     }
 
-    /**
-     * Convert Users entity to UserResponseDTO using Stream API for role mapping
-     */
     private UserResponseDTO toUserResponseDTO(Users user) {
         List<String> roleNames = user.getRoles()
                 .stream()
