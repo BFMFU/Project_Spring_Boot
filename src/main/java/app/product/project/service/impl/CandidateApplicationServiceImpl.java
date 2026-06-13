@@ -48,7 +48,7 @@ public class CandidateApplicationServiceImpl implements CandidateApplicationServ
                 });
 
         // Check if job is OPEN
-        if (jobPosting.getStatus() == null || !jobPosting.getStatus().getStatusName().equalsIgnoreCase("OPEN")) {
+        if (jobPosting.getStatus() == null || !jobPosting.getStatus().getStatusName().equalsIgnoreCase("PENDING_APPROVAL")) {
             log.warn("Job posting {} is not open. Status: {}", requestDTO.getJobId(),
                     jobPosting.getStatus() != null ? jobPosting.getStatus().getStatusName() : "null");
             throw new ConflictException("Tin tuyển dụng đã đóng hoặc không khả dụng");
